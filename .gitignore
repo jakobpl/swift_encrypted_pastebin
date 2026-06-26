@@ -1,0 +1,7 @@
+.build/
+PROJECT.md
+LOOP.md
+STATE.md
+SECURITY.md
+*.xcuserstate
+xcuserdata/
