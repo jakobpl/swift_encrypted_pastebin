@@ -8,11 +8,19 @@ struct VaultService {
         case invalidKeyDerivationMetadata
         case unlockFailed
         case missingDerivedKey
+        case archivedVaultNotFound
     }
 
     struct VaultUnlockResult {
         let key: SymmetricKey
         let payload: VaultPayload
+    }
+
+    struct ArchivedVault: Identifiable, Equatable {
+        let id: String
+        let fileName: String
+        let modifiedAt: Date
+        let byteCount: Int64
     }
 
     private let fileManager: FileManager
@@ -192,9 +200,73 @@ struct VaultService {
         }
 
         let fileURL = try vaultFileURL
-        let archivedURL = try availableCorruptVaultURL()
+        let archivedURL = try availableArchivedVaultURL(reason: "corrupt")
         try fileManager.moveItem(at: fileURL, to: archivedURL)
         return archivedURL
+    }
+
+    func moveCurrentVaultAsideForNewVault() throws -> URL {
+        guard vaultFileExists() else {
+            throw VaultServiceError.missingVault
+        }
+
+        let fileURL = try vaultFileURL
+        let archivedURL = try availableArchivedVaultURL(reason: "archived")
+        try fileManager.moveItem(at: fileURL, to: archivedURL)
+        return archivedURL
+    }
+
+    func archivedVaults() throws -> [ArchivedVault] {
+        guard vaultDirectoryExists() else {
+            return []
+        }
+
+        let directoryURL = try vaultDirectoryURL
+        let fileURLs = try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        return try fileURLs
+            .filter { $0.lastPathComponent.hasPrefix("vault.writer.archived.") }
+            .map { url in
+                let resourceValues = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+                return ArchivedVault(
+                    id: url.lastPathComponent,
+                    fileName: url.lastPathComponent,
+                    modifiedAt: resourceValues.contentModificationDate ?? .distantPast,
+                    byteCount: Int64(resourceValues.fileSize ?? 0)
+                )
+            }
+            .sorted { $0.modifiedAt > $1.modifiedAt }
+    }
+
+    func restoreArchivedVault(id: String) throws {
+        let archivedVault = try archivedVaults().first { $0.id == id }
+        guard let archivedVault else {
+            throw VaultServiceError.archivedVaultNotFound
+        }
+
+        let directoryURL = try vaultDirectoryURL
+        let archivedURL = directoryURL.appendingPathComponent(archivedVault.fileName)
+
+        if vaultFileExists() {
+            _ = try moveCurrentVaultAsideForNewVault()
+        }
+
+        try fileManager.moveItem(at: archivedURL, to: try vaultFileURL)
+    }
+
+    func deleteArchivedVault(id: String) throws {
+        let archivedVault = try archivedVaults().first { $0.id == id }
+        guard let archivedVault else {
+            throw VaultServiceError.archivedVaultNotFound
+        }
+
+        let archivedURL = try vaultDirectoryURL
+            .appendingPathComponent(archivedVault.fileName)
+        try fileManager.removeItem(at: archivedURL)
     }
 
     func savePayload(_ payload: VaultPayload, using key: SymmetricKey) throws {
@@ -290,10 +362,10 @@ struct VaultService {
         try Self.encoder.encode(payload)
     }
 
-    private func availableCorruptVaultURL() throws -> URL {
+    private func availableArchivedVaultURL(reason: String) throws -> URL {
         let fileURL = try vaultFileURL
         let timestamp = Int(Date().timeIntervalSince1970)
-        let baseName = "\(fileURL.lastPathComponent).corrupt.\(timestamp)"
+        let baseName = "\(fileURL.lastPathComponent).\(reason).\(timestamp)"
         var candidate = fileURL.deletingLastPathComponent().appendingPathComponent(baseName)
         var suffix = 1
 

@@ -14,6 +14,7 @@ final class AppState: ObservableObject {
     @Published private(set) var vaultFileExists = false
     @Published private(set) var vaultNeedsCreation = true
     @Published private(set) var canReplaceCorruptedVault = false
+    @Published private(set) var archivedVaults: [VaultService.ArchivedVault] = []
     @Published private(set) var notes: [VaultNote] = []
     @Published private(set) var selectedNoteID: String?
     @Published private(set) var isAutoSaveEnabled = false
@@ -93,6 +94,63 @@ final class AppState: ObservableObject {
             refreshVaultStatus()
             canReplaceCorruptedVault = isRecoverableCorruptedVaultError(error)
             authenticationErrorMessage = "Could not replace corrupted vault."
+        }
+    }
+
+    func startNewVaultAfterForgettingPassword() {
+        derivedKey = nil
+        notes = []
+        selectedNoteID = nil
+        editorStatusMessage = nil
+        lockState = .locked
+
+        do {
+            _ = try vaultService.moveCurrentVaultAsideForNewVault()
+            refreshVaultStatus()
+            canReplaceCorruptedVault = false
+            authenticationErrorMessage = "Previous vault moved aside. Create a new vault."
+        } catch {
+            refreshVaultStatus()
+            canReplaceCorruptedVault = false
+            authenticationErrorMessage = "Could not start a new vault."
+        }
+    }
+
+    func restoreArchivedVault(id: String) {
+        derivedKey = nil
+        notes = []
+        selectedNoteID = nil
+        editorStatusMessage = nil
+        lockState = .locked
+
+        do {
+            try vaultService.restoreArchivedVault(id: id)
+            refreshVaultStatus()
+            canReplaceCorruptedVault = false
+            authenticationErrorMessage = "Archived vault restored. Unlock with that vault password."
+        } catch {
+            refreshVaultStatus()
+            canReplaceCorruptedVault = false
+            authenticationErrorMessage = "Could not restore archived vault."
+        }
+    }
+
+    func deleteArchivedVault(id: String) {
+        derivedKey = nil
+        notes = []
+        selectedNoteID = nil
+        editorStatusMessage = nil
+        lockState = .locked
+
+        do {
+            try vaultService.deleteArchivedVault(id: id)
+            refreshVaultStatus()
+            canReplaceCorruptedVault = false
+            authenticationErrorMessage = "Archived vault deleted."
+        } catch {
+            refreshVaultStatus()
+            canReplaceCorruptedVault = false
+            authenticationErrorMessage = "Could not delete archived vault."
         }
     }
 
@@ -259,6 +317,7 @@ final class AppState: ObservableObject {
         vaultDirectoryExists = vaultService.vaultDirectoryExists()
         vaultFileExists = vaultService.vaultFileExists()
         vaultNeedsCreation = vaultService.vaultNeedsCreation()
+        archivedVaults = (try? vaultService.archivedVaults()) ?? []
     }
 
     private var selectedNoteIndex: Int? {
@@ -325,6 +384,8 @@ final class AppState: ObservableObject {
             return "Vault key metadata is corrupted or unsupported."
         case .missingDerivedKey:
             return "Could not unlock vault."
+        case .archivedVaultNotFound:
+            return "Archived vault is missing."
         }
     }
 
@@ -336,7 +397,7 @@ final class AppState: ObservableObject {
         switch vaultError {
         case .invalidVault, .invalidKeyDerivationMetadata:
             return true
-        case .missingVault, .unlockFailed, .missingDerivedKey:
+        case .missingVault, .unlockFailed, .missingDerivedKey, .archivedVaultNotFound:
             return false
         }
     }
