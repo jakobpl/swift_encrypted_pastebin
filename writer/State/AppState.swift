@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import CryptoKit
 import Foundation
@@ -158,6 +159,12 @@ final class AppState: ObservableObject {
         autoSaveTask?.cancel()
         autoSaveTask = nil
         saveCurrentPayload()
+    }
+
+    func copySelectedNoteBodyToPasteboard() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(selectedNoteBody, forType: .string)
+        editorStatusMessage = "Copied."
     }
 
     func setAutoSaveEnabled(_ isEnabled: Bool) {

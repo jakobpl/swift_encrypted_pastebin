@@ -9,114 +9,24 @@ struct UnlockView: View {
     @State private var archivedVaultPendingDeletion: VaultService.ArchivedVault?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Locked")
-                .font(.title)
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.64)
+                .ignoresSafeArea()
 
-            Text(appState.vaultNeedsCreation ? "Create vault" : "Unlock vault")
-                .foregroundStyle(.secondary)
-
-            SecureField("Password", text: $password)
-                .frame(width: 240)
-                .onSubmit(submitPassword)
-
-            if let errorMessage = appState.authenticationErrorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
-            }
-
-            Button(appState.vaultNeedsCreation ? "Create" : "Unlock") {
-                submitPassword()
-            }
-            .disabled(password.isEmpty)
-
-            if appState.canReplaceCorruptedVault {
-                if isConfirmingVaultReplacement {
-                    Text("This moves the current vault aside and starts a new empty vault.")
-                        .foregroundStyle(.secondary)
-
-                    HStack {
-                        Button("Cancel") {
-                            isConfirmingVaultReplacement = false
-                        }
-
-                        Button("Replace vault", role: .destructive) {
-                            password = ""
-                            isConfirmingVaultReplacement = false
-                            appState.replaceCorruptedVaultAfterConfirmation()
-                        }
-                    }
-                } else {
-                    Button("Replace corrupted vault") {
-                        isConfirmingVaultReplacement = true
-                    }
+            ScrollView {
+                VStack(spacing: 16) {
+                    unlockPanel
+                    recoveryPanel
+                    archivedVaultsPanel
                 }
-            }
-
-            if !appState.vaultNeedsCreation {
-                Divider()
-                    .frame(width: 240)
-
-                if isConfirmingNewVault {
-                    Text("This moves the current encrypted vault aside. It does not delete or decrypt it.")
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 300)
-
-                    HStack {
-                        Button("Cancel") {
-                            isConfirmingNewVault = false
-                        }
-
-                        Button("Start new vault", role: .destructive) {
-                            password = ""
-                            isConfirmingNewVault = false
-                            appState.startNewVaultAfterForgettingPassword()
-                        }
-                    }
-                } else {
-                    Button("Forgot password? Start new vault") {
-                        isConfirmingNewVault = true
-                    }
-                }
-            }
-
-            if !appState.archivedVaults.isEmpty {
-                Divider()
-                    .frame(width: 300)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Archived Vaults")
-                        .foregroundStyle(.secondary)
-
-                    ForEach(appState.archivedVaults) { archivedVault in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(archivedVault.fileName)
-                                    .lineLimit(1)
-
-                                Text("\(byteCountLabel(archivedVault.byteCount))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Button("Restore") {
-                                password = ""
-                                appState.restoreArchivedVault(id: archivedVault.id)
-                            }
-
-                            Button("Delete", role: .destructive) {
-                                archivedVaultPendingDeletion = archivedVault
-                            }
-                        }
-                    }
-                }
-                .frame(width: 360)
+                .padding(.horizontal, 28)
+                .padding(.top, 88)
+                .padding(.bottom, 28)
+                .frame(maxWidth: 620)
             }
         }
-        .padding()
         .onChange(of: appState.canReplaceCorruptedVault) { _, canReplace in
             if !canReplace {
                 isConfirmingVaultReplacement = false
@@ -142,6 +52,149 @@ struct UnlockView: View {
             }
         } message: { archivedVault in
             Text("This permanently deletes \(archivedVault.fileName). It cannot be restored from this app.")
+        }
+    }
+
+    private var unlockPanel: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "lock.fill")
+                .font(.title2)
+                .foregroundStyle(.white.opacity(0.58))
+
+            Text("Locked")
+                .font(.title.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.94))
+
+            Text(appState.vaultNeedsCreation ? "Create vault" : "Unlock vault")
+                .foregroundStyle(.white.opacity(0.58))
+
+            SecureField("Password", text: $password)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 300)
+                .onSubmit(submitPassword)
+
+            if let errorMessage = appState.authenticationErrorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(appState.vaultNeedsCreation ? "Create" : "Unlock") {
+                submitPassword()
+            }
+            .disabled(password.isEmpty)
+            .buttonStyle(.glassProminent)
+        }
+        .padding(.horizontal, 44)
+        .padding(.vertical, 34)
+        .frame(maxWidth: .infinity)
+        .glassPanel(cornerRadius: 36, material: .regularMaterial, strokeOpacity: 0.34)
+    }
+
+    @ViewBuilder
+    private var recoveryPanel: some View {
+        if appState.canReplaceCorruptedVault || !appState.vaultNeedsCreation {
+            VStack(spacing: 12) {
+                if appState.canReplaceCorruptedVault {
+                    if isConfirmingVaultReplacement {
+                        Text("This moves the current vault aside and starts a new empty vault.")
+                            .foregroundStyle(.white.opacity(0.62))
+                            .multilineTextAlignment(.center)
+
+                        HStack {
+                            Button("Cancel") {
+                                isConfirmingVaultReplacement = false
+                            }
+                            .buttonStyle(.glass)
+
+                            Button("Replace vault", role: .destructive) {
+                                password = ""
+                                isConfirmingVaultReplacement = false
+                                appState.replaceCorruptedVaultAfterConfirmation()
+                            }
+                            .buttonStyle(.glassProminent)
+                        }
+                    } else {
+                        Button("Replace corrupted vault") {
+                            isConfirmingVaultReplacement = true
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if !appState.vaultNeedsCreation {
+                    if isConfirmingNewVault {
+                        Text("This moves the current encrypted vault aside. It does not delete or decrypt it.")
+                            .foregroundStyle(.white.opacity(0.62))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Button("Cancel") {
+                                isConfirmingNewVault = false
+                            }
+                            .buttonStyle(.glass)
+
+                            Button("Start new vault", role: .destructive) {
+                                password = ""
+                                isConfirmingNewVault = false
+                                appState.startNewVaultAfterForgettingPassword()
+                            }
+                            .buttonStyle(.glassProminent)
+                        }
+                    } else {
+                        Button("Forgot password? Start new vault") {
+                            isConfirmingNewVault = true
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.top, 2)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var archivedVaultsPanel: some View {
+        if !appState.archivedVaults.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Archived Vaults")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.66))
+
+                ForEach(appState.archivedVaults) { archivedVault in
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(archivedVault.fileName)
+                                .lineLimit(1)
+
+                            Text(byteCountLabel(archivedVault.byteCount))
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+
+                        Spacer()
+
+                        Button("Restore") {
+                            password = ""
+                            appState.restoreArchivedVault(id: archivedVault.id)
+                        }
+                        .buttonStyle(.glass)
+
+                        Button("Delete", role: .destructive) {
+                            archivedVaultPendingDeletion = archivedVault
+                        }
+                        .buttonStyle(.glass)
+                    }
+                    .padding(10)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .glassPanel(cornerRadius: 30, strokeOpacity: 0.28)
         }
     }
 

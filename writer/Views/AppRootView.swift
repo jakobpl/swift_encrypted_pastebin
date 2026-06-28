@@ -12,6 +12,9 @@ struct AppRootView: View {
                 EditorView()
             }
         }
+        .background {
+            TransparentWindowView()
+        }
         .frame(minWidth: 720, minHeight: 480)
     }
 }

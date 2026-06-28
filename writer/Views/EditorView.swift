@@ -13,114 +13,27 @@ struct EditorView: View {
     @FocusState private var focusedArea: FocusArea?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Notes")
-                    .font(.title)
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.64)
+                .ignoresSafeArea()
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 16) {
+                toolbar
 
-                Toggle(
-                    "Auto Save",
-                    isOn: Binding(
-                        get: { appState.isAutoSaveEnabled },
-                        set: { appState.setAutoSaveEnabled($0) }
-                    )
-                )
-                .toggleStyle(.checkbox)
-
-                Button("Save") {
-                    appState.saveEditorText()
+                HStack(alignment: .top, spacing: 14) {
+                    notesSidebar
+                    editorSurface
                 }
-                .keyboardShortcut("s", modifiers: .command)
-
-                Button("Lock") {
-                    appState.lock()
-                }
-
-                Button("Notes") {
-                    focusedArea = .noteList
-                }
-                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .accessibilityHidden(true)
-
-                Button("Editor") {
-                    focusedArea = .editor
-                }
-                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .accessibilityHidden(true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            if let statusMessage = appState.editorStatusMessage {
-                Text(statusMessage)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 12) {
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Vault")
-                            .foregroundStyle(.secondary)
-
-                        Spacer()
-
-                        Button {
-                            appState.createNote()
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .buttonStyle(.borderless)
-                        .help("New note")
-                    }
-
-                    List(
-                        appState.notes,
-                        selection: Binding(
-                            get: { appState.selectedNoteID },
-                            set: { selectedID in
-                                if let selectedID {
-                                    appState.selectNote(id: selectedID)
-                                }
-                            }
-                        )
-                    ) { note in
-                        Text(note.title)
-                            .lineLimit(1)
-                            .tag(note.id)
-                            .contextMenu {
-                                Button("Rename") {
-                                    notePendingRename = note
-                                    renameTitle = note.title
-                                }
-
-                                Button("Delete", role: .destructive) {
-                                    notePendingDeletion = note
-                                }
-                            }
-                    }
-                    .focused($focusedArea, equals: .noteList)
-                }
-                .frame(width: 180)
-
-                TextEditor(
-                    text: Binding(
-                        get: { appState.selectedNoteBody },
-                        set: { appState.updateSelectedNoteBody($0) }
-                    )
-                )
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .background(Color.black.opacity(0.04))
-                .border(.secondary)
-                .focused($focusedArea, equals: .editor)
-            }
+            .padding(.horizontal, 22)
+            .padding(.top, 58)
+            .padding(.bottom, 22)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 18)
         }
-        .padding()
-        .fontDesign(.monospaced)
         .onAppear {
             focusedArea = .editor
         }
@@ -174,6 +87,149 @@ struct EditorView: View {
         } message: { note in
             Text("This removes \"\(note.title)\" from the vault.")
         }
+    }
+
+    private var toolbar: some View {
+        HStack(spacing: 12) {
+            Spacer()
+
+            if let statusMessage = appState.editorStatusMessage {
+                Text(statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+
+            Toggle(
+                "Auto Save",
+                isOn: Binding(
+                    get: { appState.isAutoSaveEnabled },
+                    set: { appState.setAutoSaveEnabled($0) }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(.white.opacity(0.16), lineWidth: 1)
+            }
+
+            Button {
+                appState.copySelectedNoteBodyToPasteboard()
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy note text")
+            .buttonStyle(.glass)
+
+            Button {
+                appState.saveEditorText()
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .keyboardShortcut("s", modifiers: .command)
+            .help("Save vault")
+            .buttonStyle(.glass)
+
+            Button {
+                appState.lock()
+            } label: {
+                Image(systemName: "lock")
+            }
+            .help("Lock vault")
+            .buttonStyle(.glassProminent)
+
+            Button("Notes") {
+                focusedArea = .noteList
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+
+            Button("Editor") {
+                focusedArea = .editor
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var notesSidebar: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Notes")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.62))
+
+                Spacer()
+
+                Button {
+                    appState.createNote()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.glass)
+                .help("New note")
+            }
+
+            List(
+                appState.notes,
+                selection: Binding(
+                    get: { appState.selectedNoteID },
+                    set: { selectedID in
+                        if let selectedID {
+                            appState.selectNote(id: selectedID)
+                        }
+                    }
+                )
+            ) { note in
+                Text(note.title)
+                    .lineLimit(1)
+                    .tag(note.id)
+                    .contextMenu {
+                        Button("Rename") {
+                            notePendingRename = note
+                            renameTitle = note.title
+                        }
+
+                        Button("Delete", role: .destructive) {
+                            notePendingDeletion = note
+                        }
+                    }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .focused($focusedArea, equals: .noteList)
+        }
+        .padding(16)
+        .frame(width: 226)
+        .frame(maxHeight: .infinity)
+        .glassPanel(cornerRadius: 30, strokeOpacity: 0.30)
+    }
+
+    private var editorSurface: some View {
+        TextEditor(
+            text: Binding(
+                get: { appState.selectedNoteBody },
+                set: { appState.updateSelectedNoteBody($0) }
+            )
+        )
+        .font(.body)
+        .foregroundStyle(.white.opacity(0.94))
+        .scrollContentBackground(.hidden)
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .strokeBorder(.white.opacity(0.26), lineWidth: 1.1)
+        }
+        .focused($focusedArea, equals: .editor)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var deleteConfirmationBinding: Binding<Bool> {
